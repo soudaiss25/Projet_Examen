@@ -2,44 +2,107 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
+use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable
+class User extends Authenticatable implements JWTSubject
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
-        'name',
+        'nom',
+        'prenom',
+        'adresse',
+        'telephone',
         'email',
         'password',
+        'role',
+        'image',
+        'est_actif',
+        'remember_token',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'est_actif' => 'boolean',
     ];
+
+    public const ROLE_ADMIN      = 'admin';
+    public const ROLE_ENSEIGNANT = 'enseignant';
+    public const ROLE_PARENT     = 'parent';
+    public const ROLE_ELEVE      = 'eleve';
+
+    // Vérification de rôles
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isEnseignant(): bool
+    {
+        return $this->role === self::ROLE_ENSEIGNANT;
+    }
+
+    public function isParent(): bool
+    {
+        return $this->role === self::ROLE_PARENT;
+    }
+
+    public function isEleve(): bool
+    {
+        return $this->role === self::ROLE_ELEVE;
+    }
+
+    // Statut d'activation
+    public function isActive(): bool
+    {
+        return $this->est_actif;
+    }
+
+    public function activer(): void
+    {
+        $this->est_actif = true;
+        $this->save();
+    }
+
+    public function desactiver(): void
+    {
+        $this->est_actif = false;
+        $this->save();
+    }
+
+    // Scopes utiles
+    public function scopeActive($query)
+    {
+        return $query->where('est_actif', true);
+    }
+
+    public function scopeRole($query, $role)
+    {
+        return $query->where('role', $role);
+    }
+
+    public function scopeRoles($query, array $roles)
+    {
+        return $query->whereIn('role', $roles);
+    }
+
+    // JWT
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims(): array
+    {
+        return [];
+    }
 }
