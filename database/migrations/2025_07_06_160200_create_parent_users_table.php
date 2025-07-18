@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('classes', function (Blueprint $table) {
+        Schema::create('parent_users', function (Blueprint $table) {
             $table->id();
-            $table->string('nom'); // ex: 6ème A, Terminale S
-            $table->string('niveau'); // ex: 6ème, 5ème, etc.
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('profession')->nullable();
+            $table->integer('nombre_enfants')->default(0);
             $table->timestamps();
         });
-
     }
 
     /**
@@ -25,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('classes');
+        Schema::dropIfExists('parent_users');
     }
 };

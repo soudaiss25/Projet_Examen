@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('documents', function (Blueprint $table) {
+        Schema::create('document_eleves', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('eleve_id')->constrained('eleves');
-            $table->string('nom');
-            $table->string('fichier'); // nom du fichier ou chemin de stockage
+            $table->foreignId('eleve_id')->constrained()->onDelete('cascade');
+            $table->enum('type_document', ['extrait_naissance', 'certificat_scolarite', 'photo', 'certificat_medical']);
+            $table->string('chemin_fichier');
+            $table->datetime('date_depot');
+            $table->boolean('est_valide')->default(false);
             $table->timestamps();
         });
 

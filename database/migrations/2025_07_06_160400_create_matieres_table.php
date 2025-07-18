@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('matieres', function (Blueprint $table) {
             $table->id();
             $table->string('nom');
-            $table->integer('coefficient');
-            $table->foreignId('niveau_classe_id')->nullable(); // Si tu gères les niveaux séparément
+            $table->text('description')->nullable();
+            $table->string('niveau');
             $table->timestamps();
         });
 

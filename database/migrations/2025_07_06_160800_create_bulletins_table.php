@@ -13,13 +13,16 @@ return new class extends Migration
     {
         Schema::create('bulletins', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('eleve_id')->constrained('eleves');
-            $table->string('periode');
-            $table->float('moyenne');
-            $table->string('mention')->nullable();
+            $table->foreignId('eleve_id')->constrained()->onDelete('cascade');
+            $table->foreignId('classe_id')->constrained()->onDelete('cascade');
+            $table->string('annee_scolaire');
+            $table->enum('periode', ['trimestre_1', 'trimestre_2', 'trimestre_3', 'semestre_1', 'semestre_2']);
+            $table->decimal('moyenne_generale', 4, 2)->nullable();
             $table->integer('rang')->nullable();
+            $table->string('mention')->nullable();
             $table->text('appreciation')->nullable();
-            $table->string('pdf_path')->nullable(); // pour stocker le chemin du fichier
+            $table->string('pdf_path')->nullable();
+            $table->date('date_edition')->nullable();
             $table->timestamps();
         });
 

@@ -4,26 +4,26 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ParentUser extends Model
 {
     use HasFactory;
-    protected $table = 'parents';
 
     protected $fillable = [
         'user_id',
+        'profession',
+        'nombre_enfants'
     ];
 
-
-
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function enfants()
+    public function enfants(): HasMany
     {
-        return $this->belongsToMany(Eleve::class, 'eleve_parent');
+        return $this->hasMany(Eleve::class, 'parent_id');
     }
-
 }

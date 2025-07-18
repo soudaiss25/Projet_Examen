@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class User extends Authenticatable implements JWTSubject
 {
@@ -105,17 +106,19 @@ class User extends Authenticatable implements JWTSubject
     {
         return [];
     }
-    public function eleve()
+
+    // Relationships
+    public function eleve(): HasOne
     {
         return $this->hasOne(Eleve::class);
     }
 
-    public function enseignant()
+    public function enseignant(): HasOne
     {
         return $this->hasOne(Enseignant::class);
     }
 
-    public function parentUser()
+    public function ParentUser(): HasOne
     {
         return $this->hasOne(ParentUser::class);
     }

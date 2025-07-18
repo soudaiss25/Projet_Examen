@@ -11,10 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('eleve_parent', function (Blueprint $table) {
+        Schema::create('classes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('parent_id')->constrained('parents');
-            $table->foreignId('eleve_id')->constrained('eleves');
+            $table->string('niveau'); // 6ème, 5ème, 4ème, 3ème, 2nde, 1ère, Terminale
+            $table->string('nom'); // A, B, C, D
+            $table->integer('capacite')->default(30);
+            $table->string('annee_scolaire');
             $table->timestamps();
         });
 
@@ -25,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('eleve_parent');
+        Schema::dropIfExists('classes');
     }
 };

@@ -12,6 +12,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
+use App\Services\UserService;
 
 class AuthController extends Controller
 {
@@ -24,16 +25,26 @@ class AuthController extends Controller
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
             'adresse' => 'required|string|max:255',
-            'telephone' => 'required|string|unique:users,telephone|max:20',
-            'email' => 'required|string|email|max:255|unique:users',
+            'telephone' => 'required|string|max:20|unique:users,telephone',
+            'email' => 'required|string|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'sometimes|in:' . implode(',', [
+            'role' => 'required|in:' . implode(',', [
                     User::ROLE_ADMIN,
                     User::ROLE_ENSEIGNANT,
                     User::ROLE_PARENT,
                     User::ROLE_ELEVE,
                 ]),
             'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+
+            // Champs supplémentaires selon le rôle
+            'classe_id' => 'required_if:role,' . User::ROLE_ELEVE,
+            'parent_email' => 'required_if:role,' . User::ROLE_ELEVE,
+            'parent_nom' => 'required_if:role,' . User::ROLE_ELEVE,
+            'parent_prenom' => 'required_if:role,' . User::ROLE_ELEVE,
+            'parent_telephone' => 'required_if:role,' . User::ROLE_ELEVE,
+            'parent_adresse' => 'required_if:role,' . User::ROLE_ELEVE,
+            'classe_ids' => 'required_if:role,' . User::ROLE_ENSEIGNANT, // tableau d'ID
+            'matiere_ids' => 'required_if:role,' . User::ROLE_ENSEIGNANT, // tableau d'ID
         ]);
 
         if ($validator->fails()) {
@@ -45,21 +56,52 @@ class AuthController extends Controller
         }
 
         try {
-            $userData = $request->only(['nom', 'prenom', 'adresse', 'telephone', 'email']);
-            $userData['password'] = Hash::make($request->password);
-            $userData['role'] = $request->role ?? User::ROLE_ELEVE;
-            $userData['est_actif'] = true;
+            // Authentification requise sauf pour un élève
+            $authUser = null;
+            if ($request->role !== User::ROLE_ELEVE) {
+                $authUser = JWTAuth::parseToken()->authenticate();
 
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('users', 'public');
-                $userData['image'] = $imagePath;
+                if (!$authUser || !$authUser->isAdmin()) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Seul un administrateur peut créer ce type d’utilisateur.'
+                    ], 403);
+                }
             }
 
-            $user = User::create($userData);
+            // Traitement selon le rôle
+            switch ($request->role) {
+                case User::ROLE_ELEVE:
+                    $user = UserService::createEleve($request->all());
+                    break;
+                case User::ROLE_ENSEIGNANT:
+                    $user = UserService::createEnseignant($request->all());
+                    break;
+                case User::ROLE_PARENT:
+                    $user = UserService::createParent($request->all());
+                    break;
+                case User::ROLE_ADMIN:
+                    $user = User::create([
+                        'nom' => $request->nom,
+                        'prenom' => $request->prenom,
+                        'adresse' => $request->adresse,
+                        'telephone' => $request->telephone,
+                        'email' => $request->email,
+                        'password' => Hash::make($request->password),
+                        'role' => User::ROLE_ADMIN,
+                        'est_actif' => true,
+                    ]);
+                    break;
+                default:
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Rôle invalide.'
+                    ], 422);
+            }
 
-            // Crée un token JWT avec une durée d'expiration
+            // Générer le token pour l’utilisateur créé
             $token = JWTAuth::fromUser($user);
-            $expiresIn = config('jwt.ttl', 60) * 60; // Convertir en secondes
+            $expiresIn = config('jwt.ttl', 60) * 60;
 
             return response()->json([
                 'status' => 'success',
