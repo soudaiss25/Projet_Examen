@@ -1,49 +1,48 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Models\Enseignant;
+use App\Services\EnseignantService;
 use Illuminate\Http\Request;
 
 class EnseignantController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    protected $enseignantService;
+
+    public function __construct(EnseignantService $enseignantService)
     {
-        //
+        $this->enseignantService = $enseignantService;
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function affecterMatieres(Request $request, Enseignant $enseignant)
     {
-        //
+        $request->validate([
+            'matiere_ids' => 'required|array',
+            'matiere_ids.*' => 'exists:matieres,id',
+        ]);
+
+        $enseignant = $this->enseignantService->affecterMatieres($enseignant, $request->matiere_ids);
+
+        return response()->json($enseignant);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function affecterClasses(Request $request, Enseignant $enseignant)
     {
-        //
+        $request->validate([
+            'classe_ids' => 'required|array',
+            'classe_ids.*' => 'exists:classes,id',
+        ]);
+
+        $enseignant = $this->enseignantService->affecterClasses($enseignant, $request->classe_ids);
+
+        return response()->json($enseignant);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function affectationAutomatique(Enseignant $enseignant)
     {
-        //
-    }
+        $enseignant = $this->enseignantService->affectationAutomatique($enseignant);
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json($enseignant->load('matieres'));
     }
 }

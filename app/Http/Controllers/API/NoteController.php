@@ -1,49 +1,73 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreNoteRequest;
+use App\Models\Note;
+use App\Services\NoteService;
 use Illuminate\Http\Request;
 
 class NoteController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    protected NoteService $noteService;
+
+    public function __construct(NoteService $noteService)
     {
-        //
+        $this->noteService = $noteService;
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Saisir une note.
      */
-    public function store(Request $request)
+    public function store(StoreNoteRequest $request)
     {
-        //
+        $note = $this->noteService->saisirNote($request->validated());
+        return response()->json(['message' => 'Note enregistrée avec succès', 'note' => $note]);
     }
 
     /**
-     * Display the specified resource.
+     * Moyenne par matière d'un élève pour une période.
      */
-    public function show(string $id)
+    public function moyenneParMatiere(Request $request, $eleveId)
     {
-        //
+        $request->validate([
+            'periode' => 'required|string',
+        ]);
+
+        $moyennes = $this->noteService->calculerMoyennesParMatiere($eleveId, $request->periode);
+
+        return response()->json(['moyennes' => $moyennes]);
     }
 
     /**
-     * Update the specified resource in storage.
+     * Moyenne générale d'un élève pour une période.
      */
-    public function update(Request $request, string $id)
+    public function moyenneGenerale(Request $request, $eleveId)
     {
-        //
+        $request->validate([
+            'periode' => 'required|string',
+        ]);
+
+        $moyenne = $this->noteService->calculerMoyenneGenerale($eleveId, $request->periode);
+
+        return response()->json(['moyenne_generale' => $moyenne]);
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Voir toutes les notes d'un élève pour une période.
      */
-    public function destroy(string $id)
+    public function notesEleve(Request $request, $eleveId)
     {
-        //
+        $request->validate([
+            'periode' => 'required|string',
+        ]);
+
+        $notes = Note::where('eleve_id', $eleveId)
+            ->where('periode', $request->periode)
+            ->with(['matiere', 'enseignant'])
+            ->get();
+
+        return response()->json(['notes' => $notes]);
     }
 }

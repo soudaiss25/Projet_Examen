@@ -1,5 +1,12 @@
 <?php
 
+use App\Http\Controllers\API\BulletinController;
+use App\Http\Controllers\Api\NoteController;
+use App\Http\Controllers\ClasseController;
+use App\Http\Controllers\EleveController;
+use App\Http\Controllers\EnseignantController;
+use App\Http\Controllers\NoteController;
+use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
@@ -28,3 +35,23 @@ Route::middleware(['auth:api'])->group(function () {
     // Route admin pour activer/désactiver un utilisateur
     Route::put('/users/{userId}/toggle-status', [AuthController::class, 'toggleUserStatus']);
 });
+
+Route::post('eleve', [UserController::class, 'createEleve']);
+Route::post('enseignant', [UserController::class, 'createEnseignant']);
+Route::post('parent', [UserController::class, 'createParent']);
+
+Route::post('inscription', [EleveController::class, 'inscrire']);
+
+Route::post('{enseignant}/matieres', [EnseignantController::class, 'affecterMatieres']);
+Route::post('{enseignant}/classes', [EnseignantController::class, 'affecterClasses']);
+Route::post('{enseignant}/affectation-automatique', [EnseignantController::class, 'affectationAutomatique']);
+Route::post('{classe}/matieres', [ClasseController::class, 'affecterMatieres']);
+Route::post('{classe}/affectation-automatique', [ClasseController::class, 'affectationAutomatique']);
+
+Route::post('/', [NoteController::class, 'store']);
+Route::get('/{eleveId}/moyennes/matiere', [NoteController::class, 'moyenneParMatiere']);
+Route::get('/{eleveId}/moyenne-generale', [NoteController::class, 'moyenneGenerale']);
+Route::get('/{eleveId}', [NoteController::class, 'notesEleve']);
+
+Route::post('/{eleveId}/generer', [BulletinController::class, 'generer']);
+Route::get('/{eleveId}/{periode}/telecharger', [BulletinController::class, 'telecharger']);

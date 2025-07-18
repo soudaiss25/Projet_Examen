@@ -1,49 +1,37 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Models\Classe;
+use App\Services\ClasseService;
 use Illuminate\Http\Request;
 
 class ClasseController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    protected $classeService;
+
+    public function __construct(ClasseService $classeService)
     {
-        //
+        $this->classeService = $classeService;
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function affecterMatieres(Request $request, Classe $classe)
     {
-        //
+        $request->validate([
+            'matieres' => 'required|array',
+            'matieres.*.matiere_id' => 'required|exists:matieres,id',
+            'matieres.*.coefficient' => 'required|integer|min:1',
+        ]);
+
+        $classe = $this->classeService->affecterMatieres($classe, $request->matieres);
+
+        return response()->json($classe);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function affectationAutomatique(Classe $classe)
     {
-        //
-    }
+        $classe = $this->classeService->affectationAutomatiqueMatieres($classe);
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json($classe->load('matieres'));
     }
 }
