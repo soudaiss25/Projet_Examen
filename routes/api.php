@@ -1,12 +1,13 @@
 <?php
 
 use App\Http\Controllers\API\BulletinController;
-use App\Http\Controllers\Api\NoteController;
-use App\Http\Controllers\ClasseController;
-use App\Http\Controllers\EleveController;
-use App\Http\Controllers\EnseignantController;
-use App\Http\Controllers\NoteController;
-use App\Http\Controllers\UserController;
+
+
+use App\Http\Controllers\API\ClasseController;
+use App\Http\Controllers\API\EleveController;
+use App\Http\Controllers\API\EnseignantController;
+use App\Http\Controllers\API\NoteController;
+use App\Http\Controllers\API\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
