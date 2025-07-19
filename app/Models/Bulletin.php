@@ -15,11 +15,13 @@ class Bulletin extends Model
         'eleve_id',
         'classe_id',
         'annee_scolaire',
+        'periode',
         'moyenne_generale',
         'rang',
         'mention',
         'appreciation',
-        'pdf_path'
+        'pdf_path',
+        'date_edition'
     ];
 
     protected $casts = [
@@ -36,8 +38,6 @@ class Bulletin extends Model
         return $this->belongsTo(Classe::class);
     }
 
-    public function notes(): HasMany
-    {
-        return $this->hasMany(Note::class);
-    }
+    // Les notes ne sont pas directement liées au bulletin
+    // Elles sont liées à l'élève et à la période
 }

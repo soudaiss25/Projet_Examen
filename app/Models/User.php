@@ -118,7 +118,7 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasOne(Enseignant::class);
     }
 
-    public function ParentUser(): HasOne
+    public function parentUser(): HasOne
     {
         return $this->hasOne(ParentUser::class);
     }

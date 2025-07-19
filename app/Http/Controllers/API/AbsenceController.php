@@ -3,23 +3,24 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Matiere;
-use App\Services\MatiereService;
+use App\Models\Absence;
+use App\Models\Eleve;
+use App\Services\AbsenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
-class MatiereController extends Controller
+class AbsenceController extends Controller
 {
-    protected $matiereService;
+    protected $absenceService;
 
-    public function __construct(MatiereService $matiereService)
+    public function __construct(AbsenceService $absenceService)
     {
-        $this->matiereService = $matiereService;
+        $this->absenceService = $absenceService;
     }
 
     /**
-     * Liste des matières
+     * Liste des absences
      */
     public function index()
     {
@@ -33,41 +34,45 @@ class MatiereController extends Controller
                 ], 403);
             }
 
-            $matieres = Matiere::with(['classes', 'enseignants'])->get();
+            $absences = Absence::with(['eleve.user'])->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $matieres
+                'data' => $absences
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la récupération des matières',
+                'message' => 'Erreur lors de la récupération des absences',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Créer une nouvelle matière
+     * Créer une nouvelle absence
      */
     public function store(Request $request)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
             
-            if (!$user->isAdmin()) {
+            if (!$user->isAdmin() && !$user->isEnseignant()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Seul un administrateur peut créer une matière'
+                    'message' => 'Seul un administrateur ou enseignant peut créer une absence'
                 ], 403);
             }
 
             $validator = Validator::make($request->all(), [
-                'nom' => 'required|string|max:255',
-                'description' => 'nullable|string',
-                'niveau' => 'required|in:college,lycee,tous',
+                'eleve_id' => 'required|exists:eleves,id',
+                'date_absence' => 'required|date',
+                'periode' => 'required|in:matin,apres_midi,journee',
+                'motif' => 'required|string|max:255',
+                'est_justifiee' => 'boolean',
+                'document_justificatif' => 'nullable|string',
+                'commentaire' => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -78,81 +83,84 @@ class MatiereController extends Controller
                 ], 422);
             }
 
-            $matiere = $this->matiereService->createMatiere($request->all());
+            $absence = Absence::create($request->all());
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Matière créée avec succès',
-                'data' => $matiere->load(['classes', 'enseignants'])
+                'message' => 'Absence créée avec succès',
+                'data' => $absence->load(['eleve.user'])
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la création de la matière',
+                'message' => 'Erreur lors de la création de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Afficher une matière spécifique
+     * Afficher une absence spécifique
      */
     public function show(string $id)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
             
-            $matiere = Matiere::with(['classes', 'enseignants'])->find($id);
+            $absence = Absence::with(['eleve.user'])->find($id);
 
-            if (!$matiere) {
+            if (!$absence) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Matière non trouvée'
+                    'message' => 'Absence non trouvée'
                 ], 404);
             }
 
             return response()->json([
                 'status' => 'success',
-                'data' => $matiere
+                'data' => $absence
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la récupération de la matière',
+                'message' => 'Erreur lors de la récupération de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Mettre à jour une matière
+     * Mettre à jour une absence
      */
     public function update(Request $request, string $id)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
             
-            if (!$user->isAdmin()) {
+            if (!$user->isAdmin() && !$user->isEnseignant()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Seul un administrateur peut modifier une matière'
+                    'message' => 'Seul un administrateur ou enseignant peut modifier une absence'
                 ], 403);
             }
 
-            $matiere = Matiere::find($id);
-            if (!$matiere) {
+            $absence = Absence::find($id);
+            if (!$absence) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Matière non trouvée'
+                    'message' => 'Absence non trouvée'
                 ], 404);
             }
 
             $validator = Validator::make($request->all(), [
-                'nom' => 'sometimes|required|string|max:255',
-                'description' => 'nullable|string',
-                'niveau' => 'sometimes|required|in:college,lycee,tous',
+                'date_absence' => 'sometimes|date',
+                'periode' => 'sometimes|in:matin,apres_midi,journee',
+                'motif' => 'sometimes|string|max:255',
+                'est_justifiee' => 'sometimes|boolean',
+                'document_justificatif' => 'nullable|string',
+                'commentaire' => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -163,25 +171,25 @@ class MatiereController extends Controller
                 ], 422);
             }
 
-            $matiere = $this->matiereService->updateMatiere($matiere, $request->all());
+            $absence->update($request->all());
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Matière mise à jour avec succès',
-                'data' => $matiere->load(['classes', 'enseignants'])
+                'message' => 'Absence mise à jour avec succès',
+                'data' => $absence->load(['eleve.user'])
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la mise à jour de la matière',
+                'message' => 'Erreur lors de la mise à jour de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Supprimer une matière
+     * Supprimer une absence
      */
     public function destroy(string $id)
     {
@@ -191,39 +199,75 @@ class MatiereController extends Controller
             if (!$user->isAdmin()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Seul un administrateur peut supprimer une matière'
+                    'message' => 'Seul un administrateur peut supprimer une absence'
                 ], 403);
             }
 
-            $matiere = Matiere::find($id);
-            if (!$matiere) {
+            $absence = Absence::find($id);
+            if (!$absence) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Matière non trouvée'
+                    'message' => 'Absence non trouvée'
                 ], 404);
             }
 
-            // Vérifier si la matière est utilisée
-            if ($matiere->classes()->count() > 0 || $matiere->notes()->count() > 0) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Impossible de supprimer une matière utilisée'
-                ], 400);
-            }
-
-            $matiere->delete();
+            $absence->delete();
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Matière supprimée avec succès'
+                'message' => 'Absence supprimée avec succès'
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la suppression de la matière',
+                'message' => 'Erreur lors de la suppression de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
-}
+
+    /**
+     * Obtenir les absences d'un élève
+     */
+    public function getEleveAbsences(string $eleveId)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+            
+            $eleve = Eleve::find($eleveId);
+            if (!$eleve) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Élève non trouvé'
+                ], 404);
+            }
+
+            // Vérifier les permissions
+            if (!$user->isAdmin() && !$user->isEnseignant() && 
+                ($user->isParent() && $user->parentUser->id !== $eleve->parent_id)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            $absences = Absence::where('eleve_id', $eleveId)
+                ->with(['eleve.user'])
+                ->orderBy('date_absence', 'desc')
+                ->get();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $absences
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Erreur lors de la récupération des absences',
+                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
+            ], 500);
+        }
+    }
+} 

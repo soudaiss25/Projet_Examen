@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('nom'); // A, B, C, D
             $table->integer('capacite')->default(30);
             $table->string('annee_scolaire');
+            $table->text('description')->nullable();
             $table->timestamps();
         });
 

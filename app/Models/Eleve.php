@@ -40,7 +40,7 @@ class Eleve extends Model
         return $this->belongsTo(ParentUser::class, 'parent_id');
     }
 
-    public function bulletins(): HasMany // CORRECTION: pluriel
+    public function bulletins(): HasMany
     {
         return $this->hasMany(Bulletin::class);
     }
