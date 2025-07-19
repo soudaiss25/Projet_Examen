@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Http\Controllers\API;
+use Illuminate\Support\Facades\Storage;
+
 
 use App\Http\Controllers\Controller;
 use App\Models\Note;

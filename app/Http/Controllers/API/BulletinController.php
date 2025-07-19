@@ -5,6 +5,11 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Bulletin;
 use App\Models\Eleve;
+<<<<<<< HEAD
+=======
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+>>>>>>> Lotita
 use App\Services\BulletinService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -12,17 +17,25 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 
 class BulletinController extends Controller
 {
+<<<<<<< HEAD
     protected $bulletinService;
+=======
+    protected BulletinService $service;
+>>>>>>> Lotita
 
     public function __construct(BulletinService $bulletinService)
     {
         $this->bulletinService = $bulletinService;
     }
 
+<<<<<<< HEAD
     /**
      * Liste des bulletins
      */
     public function index()
+=======
+    public function generer(Request $request, int $eleveId)
+>>>>>>> Lotita
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
@@ -43,15 +56,31 @@ class BulletinController extends Controller
                 'data' => $bulletins
             ], 200);
 
+<<<<<<< HEAD
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la récupération des bulletins',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
+=======
+    public function telecharger(int $eleveId, string $periode)
+    {
+        $eleve = Eleve::findOrFail($eleveId);
+
+        $bulletin = $eleve
+            ->bulletins()
+            ->where('periode', $periode)
+            ->firstOrFail();
+
+        // Vérifie l’existence du fichier dans le disque 'public'
+        if (! $bulletin->pdf_path || ! Storage::disk('public')->exists($bulletin->pdf_path)) {
+            abort(404, 'PDF non disponible');
+>>>>>>> Lotita
         }
     }
 
+<<<<<<< HEAD
     /**
      * Générer un nouveau bulletin
      */
@@ -329,5 +358,10 @@ class BulletinController extends Controller
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
+=======
+        return response()->file(
+            storage_path("app/public/{$bulletin->pdf_path}")
+        );
+>>>>>>> Lotita
     }
 }
