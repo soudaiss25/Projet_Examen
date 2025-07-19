@@ -3,30 +3,30 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Note;
+use App\Models\Absence;
 use App\Models\Eleve;
-use App\Services\NoteService;
+use App\Services\AbsenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
-class NoteController extends Controller
+class AbsenceController extends Controller
 {
-    protected $noteService;
+    protected $absenceService;
 
-    public function __construct(NoteService $noteService)
+    public function __construct(AbsenceService $absenceService)
     {
-        $this->noteService = $noteService;
+        $this->absenceService = $absenceService;
     }
 
     /**
-     * Liste des notes
+     * Liste des absences
      */
     public function index()
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
+            
             if (!$user->isAdmin() && !$user->isEnseignant()) {
                 return response()->json([
                     'status' => 'error',
@@ -34,43 +34,44 @@ class NoteController extends Controller
                 ], 403);
             }
 
-            $notes = Note::with(['eleve.user', 'matiere', 'enseignant.user'])->get();
+            $absences = Absence::with(['eleve.user'])->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $notes
+                'data' => $absences
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la récupération des notes',
+                'message' => 'Erreur lors de la récupération des absences',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Créer une nouvelle note
+     * Créer une nouvelle absence
      */
     public function store(Request $request)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
-            if (!$user->isEnseignant()) {
+            
+            if (!$user->isAdmin() && !$user->isEnseignant()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Seul un enseignant peut saisir une note'
+                    'message' => 'Seul un administrateur ou enseignant peut créer une absence'
                 ], 403);
             }
 
             $validator = Validator::make($request->all(), [
                 'eleve_id' => 'required|exists:eleves,id',
-                'matiere_id' => 'required|exists:matieres,id',
-                'valeur' => 'required|numeric|between:0,20',
-                'type_note' => 'required|in:devoir,composition,interrogation,oral',
-                'periode' => 'required|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
+                'date_absence' => 'required|date',
+                'periode' => 'required|in:matin,apres_midi,journee',
+                'motif' => 'required|string|max:255',
+                'est_justifiee' => 'boolean',
+                'document_justificatif' => 'nullable|string',
                 'commentaire' => 'nullable|string',
             ]);
 
@@ -82,84 +83,83 @@ class NoteController extends Controller
                 ], 422);
             }
 
-            $data = $request->all();
-            $data['enseignant_id'] = $user->enseignant->id;
-
-            $note = $this->noteService->saisirNote($data);
+            $absence = Absence::create($request->all());
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Note saisie avec succès',
-                'data' => $note->load(['eleve.user', 'matiere', 'enseignant.user'])
+                'message' => 'Absence créée avec succès',
+                'data' => $absence->load(['eleve.user'])
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la saisie de la note',
+                'message' => 'Erreur lors de la création de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Afficher une note spécifique
+     * Afficher une absence spécifique
      */
     public function show(string $id)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
+            
+            $absence = Absence::with(['eleve.user'])->find($id);
 
-            $note = Note::with(['eleve.user', 'matiere', 'enseignant.user'])->find($id);
-
-            if (!$note) {
+            if (!$absence) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Note non trouvée'
+                    'message' => 'Absence non trouvée'
                 ], 404);
             }
 
             return response()->json([
                 'status' => 'success',
-                'data' => $note
+                'data' => $absence
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la récupération de la note',
+                'message' => 'Erreur lors de la récupération de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Mettre à jour une note
+     * Mettre à jour une absence
      */
     public function update(Request $request, string $id)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
-            if (!$user->isEnseignant()) {
+            
+            if (!$user->isAdmin() && !$user->isEnseignant()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Seul un enseignant peut modifier une note'
+                    'message' => 'Seul un administrateur ou enseignant peut modifier une absence'
                 ], 403);
             }
 
-            $note = Note::find($id);
-            if (!$note) {
+            $absence = Absence::find($id);
+            if (!$absence) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Note non trouvée'
+                    'message' => 'Absence non trouvée'
                 ], 404);
             }
 
             $validator = Validator::make($request->all(), [
-                'valeur' => 'sometimes|numeric|between:0,20',
-                'type_note' => 'sometimes|in:devoir,composition,interrogation,oral',
-                'periode' => 'sometimes|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
+                'date_absence' => 'sometimes|date',
+                'periode' => 'sometimes|in:matin,apres_midi,journee',
+                'motif' => 'sometimes|string|max:255',
+                'est_justifiee' => 'sometimes|boolean',
+                'document_justificatif' => 'nullable|string',
                 'commentaire' => 'nullable|string',
             ]);
 
@@ -171,70 +171,70 @@ class NoteController extends Controller
                 ], 422);
             }
 
-            $note->update($request->all());
+            $absence->update($request->all());
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Note mise à jour avec succès',
-                'data' => $note->load(['eleve.user', 'matiere', 'enseignant.user'])
+                'message' => 'Absence mise à jour avec succès',
+                'data' => $absence->load(['eleve.user'])
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la mise à jour de la note',
+                'message' => 'Erreur lors de la mise à jour de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Supprimer une note
+     * Supprimer une absence
      */
     public function destroy(string $id)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
-            if (!$user->isEnseignant()) {
+            
+            if (!$user->isAdmin()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Seul un enseignant peut supprimer une note'
+                    'message' => 'Seul un administrateur peut supprimer une absence'
                 ], 403);
             }
 
-            $note = Note::find($id);
-            if (!$note) {
+            $absence = Absence::find($id);
+            if (!$absence) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Note non trouvée'
+                    'message' => 'Absence non trouvée'
                 ], 404);
             }
 
-            $note->delete();
+            $absence->delete();
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Note supprimée avec succès'
+                'message' => 'Absence supprimée avec succès'
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la suppression de la note',
+                'message' => 'Erreur lors de la suppression de l\'absence',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Obtenir les notes d'un élève
+     * Obtenir les absences d'un élève
      */
-    public function getEleveNotes(string $eleveId)
+    public function getEleveAbsences(string $eleveId)
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
+            
             $eleve = Eleve::find($eleveId);
             if (!$eleve) {
                 return response()->json([
@@ -244,7 +244,7 @@ class NoteController extends Controller
             }
 
             // Vérifier les permissions
-            if (!$user->isAdmin() && !$user->isEnseignant() &&
+            if (!$user->isAdmin() && !$user->isEnseignant() && 
                 ($user->isParent() && $user->parentUser->id !== $eleve->parent_id)) {
                 return response()->json([
                     'status' => 'error',
@@ -252,81 +252,22 @@ class NoteController extends Controller
                 ], 403);
             }
 
-            $notes = Note::where('eleve_id', $eleveId)
-                ->with(['matiere', 'enseignant.user'])
+            $absences = Absence::where('eleve_id', $eleveId)
+                ->with(['eleve.user'])
+                ->orderBy('date_absence', 'desc')
                 ->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $notes
+                'data' => $absences
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la récupération des notes',
+                'message' => 'Erreur lors de la récupération des absences',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
-
-    /**
-     * Saisir une note pour un élève spécifique
-     */
-    public function storeEleveNote(Request $request, string $eleveId)
-    {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
-
-            if (!$user->isEnseignant()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Seul un enseignant peut saisir une note'
-                ], 403);
-            }
-
-            $eleve = Eleve::find($eleveId);
-            if (!$eleve) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Élève non trouvé'
-                ], 404);
-            }
-
-            $validator = Validator::make($request->all(), [
-                'matiere_id' => 'required|exists:matieres,id',
-                'valeur' => 'required|numeric|between:0,20',
-                'type_note' => 'required|in:devoir,composition,interrogation,oral',
-                'periode' => 'required|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
-                'commentaire' => 'nullable|string',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Erreur de validation',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            $data = $request->all();
-            $data['eleve_id'] = $eleveId;
-            $data['enseignant_id'] = $user->enseignant->id;
-
-            $note = $this->noteService->saisirNote($data);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Note saisie avec succès',
-                'data' => $note->load(['eleve.user', 'matiere', 'enseignant.user'])
-            ], 201);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Erreur lors de la saisie de la note',
-                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
-            ], 500);
-        }
-    }
-}
+} 

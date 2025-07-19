@@ -21,16 +21,27 @@ class UserService
     public static function createEleve(array $data): User
     {
         return DB::transaction(function () use ($data) {
-            // Créer ou récupérer le parent
-            $parent = ParentUser::firstOrCreate(
-                ['email' => $data['parent_email']],
-                [
-                    'nom' => $data['parent_nom'],
-                    'prenom' => $data['parent_prenom'],
-                    'telephone' => $data['parent_telephone'],
-                    'adresse' => $data['parent_adresse'],
-                ]
-            );
+                    // Créer ou récupérer le parent
+        $userParent = User::firstOrCreate(
+            ['email' => $data['parent_email']],
+            [
+                'nom' => $data['parent_nom'],
+                'prenom' => $data['parent_prenom'],
+                'telephone' => $data['parent_telephone'],
+                'adresse' => $data['parent_adresse'],
+                'password' => Hash::make($data['parent_password'] ?? 'password123'),
+                'role' => User::ROLE_PARENT,
+                'est_actif' => true,
+            ]
+        );
+
+        $parent = ParentUser::firstOrCreate(
+            ['user_id' => $userParent->id],
+            [
+                'profession' => $data['parent_profession'] ?? null,
+                'nombre_enfants' => 0,
+            ]
+        );
 
             // Créer l'utilisateur élève
             $user = User::create([
@@ -47,7 +58,7 @@ class UserService
             // Créer l'entrée dans la table élèves
             Eleve::create([
                 'user_id' => $user->id,
-                'parent_user_id' => $parent->id,
+                'parent_id' => $parent->id,
                 'classe_id' => $data['classe_id'],
             ]);
 
@@ -77,6 +88,9 @@ class UserService
 
             $enseignant = Enseignant::create([
                 'user_id' => $user->id,
+                'specialite' => $data['specialite'] ?? 'Général',
+                'date_embauche' => $data['date_embauche'] ?? now(),
+                'numero_identifiant' => $data['numero_identifiant'] ?? 'ENS' . time(),
             ]);
 
             // Attribuer classes et matières (si passées en tableau)
@@ -114,6 +128,8 @@ class UserService
 
             ParentUser::create([
                 'user_id' => $user->id,
+                'profession' => $data['profession'] ?? null,
+                'nombre_enfants' => 0,
             ]);
 
             Mail::to($user->email)->send(new SendCredentialsMail($user, $data['password']));

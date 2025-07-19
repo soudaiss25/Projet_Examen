@@ -3,77 +3,77 @@
 namespace App\Services;
 
 use App\Models\Note;
-use App\Models\Bulletin;
+use App\Models\Eleve;
+use App\Models\Matiere;
+use App\Models\Enseignant;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Exception;
 
 class NoteService
 {
-    public function saisirNote(array $data): Note|string
+    /**
+     * Saisir une note pour un élève dans une matière spécifique
+     */
+    public function saisirNote(array $data): Note
     {
-        $existing = Note::where('eleve_id', $data['eleve_id'])
-            ->where('matiere_id', $data['matiere_id'])
-            ->where('periode', $data['periode'])
-            ->where('type_note', $data['type_note'])
-            ->first();
+        return DB::transaction(function () use ($data) {
+            $validator = Validator::make($data, [
+                'eleve_id' => 'required|exists:eleves,id',
+                'matiere_id' => 'required|exists:matieres,id',
+                'enseignant_id' => 'required|exists:enseignants,id',
+                'valeur' => 'required|numeric|between:0,20',
+                'type_note' => 'required|in:devoir,composition,interrogation,oral',
+                'periode' => 'required|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
+                'commentaire' => 'nullable|string',
+            ]);
 
-        if ($existing) {
-            return 'Une note existe déjà pour cet élève, matière, période et type de note.';
-        }
+            if ($validator->fails()) {
+                throw new Exception($validator->errors()->first());
+            }
 
-        $bulletin = $this->getOrCreateBulletin($data['eleve_id'], $data['periode']);
-        $data['bulletin_id'] = $bulletin->id;
+            $validatedData = $validator->validated();
 
-        return Note::create($data);
+            // Vérifier que l'enseignant est autorisé
+            $enseignant = Enseignant::findOrFail($validatedData['enseignant_id']);
+            $eleve = Eleve::findOrFail($validatedData['eleve_id']);
+            $matiere = Matiere::findOrFail($validatedData['matiere_id']);
+
+            if (!$enseignant->matieres()->where('matiere_id', $matiere->id)->exists() ||
+                !$enseignant->classes()->where('classe_id', $eleve->classe_id)->exists()) {
+                throw new Exception('L\'enseignant n\'est pas autorisé à saisir cette note.');
+            }
+
+            return Note::create($validatedData);
+        });
     }
 
-    protected function getOrCreateBulletin($eleveId, $periode): Bulletin
+    /**
+     * Récupérer les notes d'un élève pour une période donnée
+     */
+    public function getNotesElevePeriode($eleveId, $periode)
     {
-        $classeId = DB::table('eleves')->where('id', $eleveId)->value('classe_id');
-        $anneeScolaire = date('Y') . '-' . (date('Y') + 1);
-
-        return Bulletin::firstOrCreate([
-            'eleve_id' => $eleveId,
-            'periode' => $periode,
-        ], [
-            'classe_id' => $classeId,
-            'annee_scolaire' => $anneeScolaire,
-        ]);
-    }
-
-    public function getNotesEleve($eleveId, $periode)
-    {
-        return Note::with(['matiere', 'enseignant'])
-            ->where('eleve_id', $eleveId)
+        return Note::where('eleve_id', $eleveId)
             ->where('periode', $periode)
+            ->with(['matiere', 'enseignant.user'])
             ->get();
     }
 
-    public function moyenneGenerale($eleveId, $periode): float
+    /**
+     * Calculer la moyenne d'un élève dans une matière pour une période donnée
+     */
+    public function calculerMoyenneMatiere($eleveId, $matiereId, $periode)
     {
-        return round(Note::where('eleve_id', $eleveId)
+        $notes = Note::where('eleve_id', $eleveId)
+            ->where('matiere_id', $matiereId)
             ->where('periode', $periode)
-            ->avg('valeur'), 2);
-    }
+            ->get();
 
-    public function mention($moyenne): string
-    {
-        return match (true) {
-            $moyenne >= 16 => 'Très Bien',
-            $moyenne >= 14 => 'Bien',
-            $moyenne >= 12 => 'Assez Bien',
-            $moyenne >= 10 => 'Passable',
-            default => 'Insuffisant',
-        };
-    }
+        if ($notes->isEmpty()) {
+            return null;
+        }
 
-    public function appreciation($moyenne): string
-    {
-        return match (true) {
-            $moyenne >= 16 => 'Excellent travail, continuez ainsi.',
-            $moyenne >= 14 => 'Très bon travail, peut encore progresser.',
-            $moyenne >= 12 => 'Bon ensemble, attention à certaines matières.',
-            $moyenne >= 10 => 'Résultats acceptables, des efforts sont attendus.',
-            default => 'Résultats insuffisants, doit redoubler d’efforts.',
-        };
+        $total = $notes->sum('valeur');
+        return $total / $notes->count();
     }
 }

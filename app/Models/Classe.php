@@ -15,10 +15,11 @@ class Classe extends Model
         'niveau',
         'nom',
         'capacite',
-        'annee_scolaire'
+        'annee_scolaire',
+        'description'
     ];
 
-    public function eleve(): HasMany
+    public function eleves(): HasMany
     {
         return $this->hasMany(Eleve::class);
     }
@@ -29,12 +30,12 @@ class Classe extends Model
             ->withPivot('coefficient');
     }
 
-    public function enseignant(): BelongsToMany
+    public function enseignants(): BelongsToMany
     {
         return $this->belongsToMany(Enseignant::class, 'enseignant_classe');
     }
 
-    public function bulletin(): HasMany
+    public function bulletins(): HasMany
     {
         return $this->hasMany(Bulletin::class);
     }
