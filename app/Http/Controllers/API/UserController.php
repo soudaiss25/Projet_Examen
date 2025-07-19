@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Http\Controllers\Controller;    // ← ajouté
 use App\Services\UserService;
 use Illuminate\Http\Request;
 
