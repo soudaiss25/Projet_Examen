@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\API;
 use Illuminate\Support\Facades\Storage;
 
-
 use App\Http\Controllers\Controller;
 use App\Models\Note;
 use App\Models\Eleve;
@@ -22,21 +21,36 @@ class NoteController extends Controller
     }
 
     /**
-     * Liste des notes
+     * Liste des notes avec contrôle d'accès
      */
     public function index()
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user->isAdmin() && !$user->isEnseignant()) {
+            // Admin et enseignant : toutes les notes
+            if ($user->isAdmin() || $user->isEnseignant()) {
+                $notes = Note::with(['eleve.user', 'matiere', 'enseignant.user'])->get();
+            }
+            // Élève : ses propres notes uniquement
+            elseif ($user->isEleve()) {
+                $notes = Note::where('eleve_id', $user->eleve->id)
+                    ->with(['eleve.user', 'matiere', 'enseignant.user'])
+                    ->get();
+            }
+            // Parent : notes de ses enfants uniquement
+            elseif ($user->isParent()) {
+                $enfantsIds = $user->parentUser->eleves->pluck('id');
+                $notes = Note::whereIn('eleve_id', $enfantsIds)
+                    ->with(['eleve.user', 'matiere', 'enseignant.user'])
+                    ->get();
+            }
+            else {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Accès non autorisé'
                 ], 403);
             }
-
-            $notes = Note::with(['eleve.user', 'matiere', 'enseignant.user'])->get();
 
             return response()->json([
                 'status' => 'success',
@@ -47,6 +61,58 @@ class NoteController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la récupération des notes',
+                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
+            ], 500);
+        }
+    }
+
+    /**
+     * Afficher une note spécifique avec contrôle d'accès
+     */
+    public function show(string $id)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            $note = Note::with(['eleve.user', 'matiere', 'enseignant.user'])->find($id);
+
+            if (!$note) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Note non trouvée'
+                ], 404);
+            }
+
+            // Vérification des permissions
+            $canAccess = false;
+
+            if ($user->isAdmin() || $user->isEnseignant()) {
+                $canAccess = true;
+            }
+            elseif ($user->isEleve() && $user->eleve->id == $note->eleve_id) {
+                $canAccess = true;
+            }
+            elseif ($user->isParent()) {
+                $enfantsIds = $user->parentUser->eleves->pluck('id');
+                $canAccess = $enfantsIds->contains($note->eleve_id);
+            }
+
+            if (!$canAccess) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Accès non autorisé à cette note'
+                ], 403);
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $note
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Erreur lors de la récupération de la note',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
@@ -99,37 +165,6 @@ class NoteController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la saisie de la note',
-                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
-            ], 500);
-        }
-    }
-
-    /**
-     * Afficher une note spécifique
-     */
-    public function show(string $id)
-    {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
-
-            $note = Note::with(['eleve.user', 'matiere', 'enseignant.user'])->find($id);
-
-            if (!$note) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Note non trouvée'
-                ], 404);
-            }
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $note
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Erreur lors de la récupération de la note',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
@@ -230,7 +265,7 @@ class NoteController extends Controller
     }
 
     /**
-     * Obtenir les notes d'un élève
+     * Obtenir les notes d'un élève avec contrôle d'accès renforcé
      */
     public function getEleveNotes(string $eleveId)
     {
@@ -245,9 +280,21 @@ class NoteController extends Controller
                 ], 404);
             }
 
-            // Vérifier les permissions
-            if (!$user->isAdmin() && !$user->isEnseignant() &&
-                ($user->isParent() && $user->parentUser->id !== $eleve->parent_id)) {
+            // Vérifier les permissions selon le rôle
+            $canAccess = false;
+
+            if ($user->isAdmin() || $user->isEnseignant()) {
+                $canAccess = true;
+            }
+            elseif ($user->isEleve() && $user->eleve->id == $eleveId) {
+                $canAccess = true;
+            }
+            elseif ($user->isParent()) {
+                $enfantsIds = $user->parentUser->eleves->pluck('id');
+                $canAccess = $enfantsIds->contains($eleveId);
+            }
+
+            if (!$canAccess) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Accès non autorisé'
