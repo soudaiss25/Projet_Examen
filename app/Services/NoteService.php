@@ -6,13 +6,11 @@ use App\Models\Note;
 use App\Models\Eleve;
 use App\Models\Matiere;
 use App\Models\Enseignant;
+use App\Models\Bulletin;
 use Illuminate\Support\Facades\DB;
-<<<<<<< HEAD
 use Illuminate\Support\Facades\Validator;
 use Exception;
-=======
 use Illuminate\Support\Collection;
->>>>>>> Lotita
 
 class NoteService
 {
@@ -43,6 +41,7 @@ class NoteService
             $eleve = Eleve::findOrFail($validatedData['eleve_id']);
             $matiere = Matiere::findOrFail($validatedData['matiere_id']);
 
+            // Vérification des autorisations de l'enseignant
             if (!$enseignant->matieres()->where('matiere_id', $matiere->id)->exists() ||
                 !$enseignant->classes()->where('classe_id', $eleve->classe_id)->exists()) {
                 throw new Exception('L\'enseignant n\'est pas autorisé à saisir cette note.');
@@ -52,43 +51,36 @@ class NoteService
         });
     }
 
-<<<<<<< HEAD
     /**
      * Récupérer les notes d'un élève pour une période donnée
      */
-    public function getNotesElevePeriode($eleveId, $periode)
+    public function getNotesElevePeriode(int $eleveId, string $periode): Collection
     {
         return Note::where('eleve_id', $eleveId)
-=======
-    protected function getOrCreateBulletin(int $eleveId, string $periode): Bulletin
-    {
-        $classeId = DB::table('eleves')->where('id', $eleveId)->value('classe_id');
-        $anneeScolaire = date('Y') . '-' . (date('Y') + 1);
-
-        return Bulletin::firstOrCreate([
-            'eleve_id'      => $eleveId,
-            'periode'       => $periode,
-        ], [
-            'classe_id'     => $classeId,
-            'annee_scolaire'=> $anneeScolaire,
-        ]);
-    }
-
-    public function getNotesEleve(int $eleveId, string $periode)
-    {
-        return Note::with(['matiere', 'enseignant'])
-            ->where('eleve_id', $eleveId)
->>>>>>> Lotita
             ->where('periode', $periode)
             ->with(['matiere', 'enseignant.user'])
             ->get();
     }
 
     /**
-<<<<<<< HEAD
+     * Récupérer toutes les notes d'un élève
+     */
+    public function getNotesEleve(int $eleveId, ?string $periode = null): Collection
+    {
+        $query = Note::with(['matiere', 'enseignant.user'])
+            ->where('eleve_id', $eleveId);
+
+        if ($periode) {
+            $query->where('periode', $periode);
+        }
+
+        return $query->get();
+    }
+
+    /**
      * Calculer la moyenne d'un élève dans une matière pour une période donnée
      */
-    public function calculerMoyenneMatiere($eleveId, $matiereId, $periode)
+    public function calculerMoyenneMatiere(int $eleveId, int $matiereId, string $periode): ?float
     {
         $notes = Note::where('eleve_id', $eleveId)
             ->where('matiere_id', $matiereId)
@@ -100,35 +92,54 @@ class NoteService
         }
 
         $total = $notes->sum('valeur');
-        return $total / $notes->count();
-=======
-     * Calcule la moyenne générale à partir d'une collection de notes.
-     *
-     * @param Collection<int, Note> $notes
+        return round($total / $notes->count(), 2);
+    }
+
+    /**
+     * Calcule la moyenne générale à partir d'une collection de notes
      */
     public function calculerMoyenneGenerale(Collection $notes): float
     {
+        if ($notes->isEmpty()) {
+            return 0.0;
+        }
+
         return round($notes->avg('valeur'), 2);
     }
 
     /**
-     * Calcule la moyenne par matière à partir d'une collection de notes.
-     * Retourne un tableau associatif ["Matière" => moyenne].
-     *
-     * @param Collection<int, Note> $notes
+     * Calcule la moyenne par matière à partir d'une collection de notes
+     * Retourne un tableau associatif ["Matière" => moyenne]
      */
     public function calculerMoyennesParMatiere(Collection $notes): array
     {
+        if ($notes->isEmpty()) {
+            return [];
+        }
+
         return $notes
-            ->groupBy(fn(Note $note) => $note->matiere->libelle ?? $note->matiere_id)
-            ->map(fn(Collection $group) => round($group->avg('valeur'), 2))
+            ->groupBy(function (Note $note) {
+                return $note->matiere->libelle ?? 'Matière ' . $note->matiere_id;
+            })
+            ->map(function (Collection $group) {
+                return round($group->avg('valeur'), 2);
+            })
             ->toArray();
     }
 
     /**
-     * Détermine la mention selon la moyenne générale.
+     * Calcule la moyenne générale d'un élève pour une période
      */
-    public function mention(float $moyenne): string
+    public function calculerMoyenneElevePeriode(int $eleveId, string $periode): float
+    {
+        $notes = $this->getNotesElevePeriode($eleveId, $periode);
+        return $this->calculerMoyenneGenerale($notes);
+    }
+
+    /**
+     * Détermine la mention selon la moyenne générale
+     */
+    public function getMention(float $moyenne): string
     {
         return match (true) {
             $moyenne >= 16 => 'Très Bien',
@@ -140,17 +151,107 @@ class NoteService
     }
 
     /**
-     * Fournit une appréciation textuelle selon la moyenne générale.
+     * Fournit une appréciation textuelle selon la moyenne générale
      */
-    public function appreciation(float $moyenne): string
+    public function getAppreciation(float $moyenne): string
     {
         return match (true) {
             $moyenne >= 16 => 'Excellent travail, continuez ainsi.',
             $moyenne >= 14 => 'Très bon travail, peut encore progresser.',
             $moyenne >= 12 => 'Bon ensemble, attention à certaines matières.',
             $moyenne >= 10 => 'Résultats acceptables, des efforts sont attendus.',
-            default        => 'Résultats insuffisants, doit redoubler d’efforts.',
+            default        => 'Résultats insuffisants, doit redoubler d\'efforts.',
         };
->>>>>>> Lotita
+    }
+
+    /**
+     * Obtient ou crée un bulletin pour un élève et une période
+     */
+    protected function getOrCreateBulletin(int $eleveId, string $periode): Bulletin
+    {
+        $eleve = Eleve::findOrFail($eleveId);
+        $anneeScolaire = date('Y') . '-' . (date('Y') + 1);
+
+        return Bulletin::firstOrCreate([
+            'eleve_id' => $eleveId,
+            'periode'  => $periode,
+        ], [
+            'classe_id'      => $eleve->classe_id,
+            'annee_scolaire' => $anneeScolaire,
+        ]);
+    }
+
+    /**
+     * Génère un rapport complet des notes d'un élève pour une période
+     */
+    public function genererRapportEleve(int $eleveId, string $periode): array
+    {
+        $notes = $this->getNotesElevePeriode($eleveId, $periode);
+        $moyenneGenerale = $this->calculerMoyenneGenerale($notes);
+        $moyennesParMatiere = $this->calculerMoyennesParMatiere($notes);
+
+        return [
+            'eleve_id' => $eleveId,
+            'periode' => $periode,
+            'notes' => $notes,
+            'moyenne_generale' => $moyenneGenerale,
+            'moyennes_par_matiere' => $moyennesParMatiere,
+            'mention' => $this->getMention($moyenneGenerale),
+            'appreciation' => $this->getAppreciation($moyenneGenerale),
+            'nombre_notes' => $notes->count(),
+        ];
+    }
+
+    /**
+     * Valide qu'une note peut être modifiée ou supprimée
+     */
+    public function peutModifierNote(Note $note, int $enseignantId): bool
+    {
+        // Seul l'enseignant qui a saisi la note peut la modifier
+        return $note->enseignant_id === $enseignantId;
+    }
+
+    /**
+     * Supprime une note avec vérification des permissions
+     */
+    public function supprimerNote(int $noteId, int $enseignantId): bool
+    {
+        return DB::transaction(function () use ($noteId, $enseignantId) {
+            $note = Note::findOrFail($noteId);
+
+            if (!$this->peutModifierNote($note, $enseignantId)) {
+                throw new Exception('Vous n\'êtes pas autorisé à supprimer cette note.');
+            }
+
+            return $note->delete();
+        });
+    }
+
+    /**
+     * Modifie une note avec vérification des permissions
+     */
+    public function modifierNote(int $noteId, array $data, int $enseignantId): Note
+    {
+        return DB::transaction(function () use ($noteId, $data, $enseignantId) {
+            $note = Note::findOrFail($noteId);
+
+            if (!$this->peutModifierNote($note, $enseignantId)) {
+                throw new Exception('Vous n\'êtes pas autorisé à modifier cette note.');
+            }
+
+            $validator = Validator::make($data, [
+                'valeur' => 'sometimes|numeric|between:0,20',
+                'type_note' => 'sometimes|in:devoir,composition,interrogation,oral',
+                'periode' => 'sometimes|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
+                'commentaire' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                throw new Exception($validator->errors()->first());
+            }
+
+            $note->update($validator->validated());
+            return $note->fresh(['matiere', 'enseignant.user', 'eleve.user']);
+        });
     }
 }

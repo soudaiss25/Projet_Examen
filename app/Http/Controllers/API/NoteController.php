@@ -34,9 +34,7 @@ class NoteController extends Controller
             }
             // Élève : ses propres notes uniquement
             elseif ($user->isEleve()) {
-                $notes = Note::where('eleve_id', $user->eleve->id)
-                    ->with(['eleve.user', 'matiere', 'enseignant.user'])
-                    ->get();
+                $notes = $this->noteService->getNotesEleve($user->eleve->id);
             }
             // Parent : notes de ses enfants uniquement
             elseif ($user->isParent()) {
@@ -61,6 +59,60 @@ class NoteController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la récupération des notes',
+                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
+            ], 500);
+        }
+    }
+
+    /**
+     * Créer une nouvelle note - OPTIMISÉ AVEC LE SERVICE
+     */
+    public function store(Request $request)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            if (!$user->isEnseignant()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Seul un enseignant peut saisir une note'
+                ], 403);
+            }
+
+            // Validation simplifiée - le service se charge de la validation complète
+            $validator = Validator::make($request->all(), [
+                'eleve_id' => 'required|exists:eleves,id',
+                'matiere_id' => 'required|exists:matieres,id',
+                'valeur' => 'required|numeric|between:0,20',
+                'type_note' => 'required|in:devoir,composition,interrogation,oral',
+                'periode' => 'required|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
+                'commentaire' => 'nullable|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Erreur de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $data = $request->all();
+            $data['enseignant_id'] = $user->enseignant->id;
+
+            // Utilisation du service avec gestion des exceptions spécifiques
+            $note = $this->noteService->saisirNote($data);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Note saisie avec succès',
+                'data' => $note->load(['eleve.user', 'matiere', 'enseignant.user'])
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(), // Le service renvoie des messages d'erreur plus précis
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
@@ -119,59 +171,7 @@ class NoteController extends Controller
     }
 
     /**
-     * Créer une nouvelle note
-     */
-    public function store(Request $request)
-    {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
-
-            if (!$user->isEnseignant()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Seul un enseignant peut saisir une note'
-                ], 403);
-            }
-
-            $validator = Validator::make($request->all(), [
-                'eleve_id' => 'required|exists:eleves,id',
-                'matiere_id' => 'required|exists:matieres,id',
-                'valeur' => 'required|numeric|between:0,20',
-                'type_note' => 'required|in:devoir,composition,interrogation,oral',
-                'periode' => 'required|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
-                'commentaire' => 'nullable|string',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Erreur de validation',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            $data = $request->all();
-            $data['enseignant_id'] = $user->enseignant->id;
-
-            $note = $this->noteService->saisirNote($data);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Note saisie avec succès',
-                'data' => $note->load(['eleve.user', 'matiere', 'enseignant.user'])
-            ], 201);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Erreur lors de la saisie de la note',
-                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
-            ], 500);
-        }
-    }
-
-    /**
-     * Mettre à jour une note
+     * Mettre à jour une note - OPTIMISÉ AVEC LE SERVICE
      */
     public function update(Request $request, string $id)
     {
@@ -193,40 +193,26 @@ class NoteController extends Controller
                 ], 404);
             }
 
-            $validator = Validator::make($request->all(), [
-                'valeur' => 'sometimes|numeric|between:0,20',
-                'type_note' => 'sometimes|in:devoir,composition,interrogation,oral',
-                'periode' => 'sometimes|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
-                'commentaire' => 'nullable|string',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Erreur de validation',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            $note->update($request->all());
+            // Utilisation du service pour la modification avec vérification des permissions
+            $noteUpdated = $this->noteService->modifierNote($id, $request->all(), $user->enseignant->id);
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Note mise à jour avec succès',
-                'data' => $note->load(['eleve.user', 'matiere', 'enseignant.user'])
+                'data' => $noteUpdated
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la mise à jour de la note',
+                'message' => $e->getMessage(),
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Supprimer une note
+     * Supprimer une note - OPTIMISÉ AVEC LE SERVICE
      */
     public function destroy(string $id)
     {
@@ -240,32 +226,32 @@ class NoteController extends Controller
                 ], 403);
             }
 
-            $note = Note::find($id);
-            if (!$note) {
+            // Utilisation du service pour la suppression avec vérification des permissions
+            $deleted = $this->noteService->supprimerNote($id, $user->enseignant->id);
+
+            if ($deleted) {
                 return response()->json([
-                    'status' => 'error',
-                    'message' => 'Note non trouvée'
-                ], 404);
+                    'status' => 'success',
+                    'message' => 'Note supprimée avec succès'
+                ], 200);
             }
 
-            $note->delete();
-
             return response()->json([
-                'status' => 'success',
-                'message' => 'Note supprimée avec succès'
-            ], 200);
+                'status' => 'error',
+                'message' => 'Erreur lors de la suppression'
+            ], 500);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la suppression de la note',
+                'message' => $e->getMessage(),
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
     }
 
     /**
-     * Obtenir les notes d'un élève avec contrôle d'accès renforcé
+     * Obtenir les notes d'un élève - OPTIMISÉ AVEC LE SERVICE
      */
     public function getEleveNotes(string $eleveId)
     {
@@ -301,9 +287,8 @@ class NoteController extends Controller
                 ], 403);
             }
 
-            $notes = Note::where('eleve_id', $eleveId)
-                ->with(['matiere', 'enseignant.user'])
-                ->get();
+            // Utilisation du service pour récupérer les notes
+            $notes = $this->noteService->getNotesEleve($eleveId);
 
             return response()->json([
                 'status' => 'success',
@@ -320,7 +305,7 @@ class NoteController extends Controller
     }
 
     /**
-     * Saisir une note pour un élève spécifique
+     * Saisir une note pour un élève spécifique - OPTIMISÉ AVEC LE SERVICE
      */
     public function storeEleveNote(Request $request, string $eleveId)
     {
@@ -362,6 +347,7 @@ class NoteController extends Controller
             $data['eleve_id'] = $eleveId;
             $data['enseignant_id'] = $user->enseignant->id;
 
+            // Utilisation du service
             $note = $this->noteService->saisirNote($data);
 
             return response()->json([
@@ -373,7 +359,60 @@ class NoteController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erreur lors de la saisie de la note',
+                'message' => $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
+            ], 500);
+        }
+    }
+
+    /**
+     * NOUVELLE MÉTHODE : Rapport complet d'un élève
+     */
+    public function getRapportEleve(string $eleveId, string $periode)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            // Vérification des permissions (même logique que getEleveNotes)
+            $eleve = Eleve::find($eleveId);
+            if (!$eleve) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Élève non trouvé'
+                ], 404);
+            }
+
+            $canAccess = false;
+            if ($user->isAdmin() || $user->isEnseignant()) {
+                $canAccess = true;
+            }
+            elseif ($user->isEleve() && $user->eleve->id == $eleveId) {
+                $canAccess = true;
+            }
+            elseif ($user->isParent()) {
+                $enfantsIds = $user->parentUser->eleves->pluck('id');
+                $canAccess = $enfantsIds->contains($eleveId);
+            }
+
+            if (!$canAccess) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Accès non autorisé'
+                ], 403);
+            }
+
+            // Utilisation du service pour générer le rapport
+            $rapport = $this->noteService->genererRapportEleve($eleveId, $periode);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $rapport
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Erreur lors de la génération du rapport',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
