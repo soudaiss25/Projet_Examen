@@ -5,37 +5,25 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Bulletin;
 use App\Models\Eleve;
-<<<<<<< HEAD
-=======
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
->>>>>>> Lotita
-use App\Services\BulletinService;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use App\Services\BulletinService;
 
 class BulletinController extends Controller
 {
-<<<<<<< HEAD
-    protected $bulletinService;
-=======
-    protected BulletinService $service;
->>>>>>> Lotita
+    protected BulletinService $bulletinService;
 
     public function __construct(BulletinService $bulletinService)
     {
         $this->bulletinService = $bulletinService;
     }
 
-<<<<<<< HEAD
     /**
-     * Liste des bulletins
+     * Lister tous les bulletins (admin et enseignant uniquement)
      */
     public function index()
-=======
-    public function generer(Request $request, int $eleveId)
->>>>>>> Lotita
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
@@ -55,15 +43,26 @@ class BulletinController extends Controller
                 'status' => 'success',
                 'data' => $bulletins
             ], 200);
-
-<<<<<<< HEAD
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la récupération des bulletins',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
-=======
+        }
+    }
+
+    /**
+     * Générer un nouveau bulletin
+     */
+    public function store(Request $request)
+    {
+        return $this->generateBulletin($request, $request->eleve_id);
+    }
+
+    /**
+     * Télécharger le PDF d'un bulletin
+     */
     public function telecharger(int $eleveId, string $periode)
     {
         $eleve = Eleve::findOrFail($eleveId);
@@ -73,62 +72,13 @@ class BulletinController extends Controller
             ->where('periode', $periode)
             ->firstOrFail();
 
-        // Vérifie l’existence du fichier dans le disque 'public'
         if (! $bulletin->pdf_path || ! Storage::disk('public')->exists($bulletin->pdf_path)) {
             abort(404, 'PDF non disponible');
->>>>>>> Lotita
         }
-    }
 
-<<<<<<< HEAD
-    /**
-     * Générer un nouveau bulletin
-     */
-    public function store(Request $request)
-    {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
-
-            if (!$user->isAdmin() && !$user->isEnseignant()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Seul un administrateur ou enseignant peut générer un bulletin'
-                ], 403);
-            }
-
-            $validator = Validator::make($request->all(), [
-                'eleve_id' => 'required|exists:eleves,id',
-                'periode' => 'required|in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
-                'annee_scolaire' => 'nullable|string|max:9',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Erreur de validation',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            $bulletin = $this->bulletinService->genererBulletin(
-                $request->eleve_id,
-                $request->periode,
-                $request->annee_scolaire
-            );
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Bulletin généré avec succès',
-                'data' => $bulletin
-            ], 201);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Erreur lors de la génération du bulletin',
-                'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
-            ], 500);
-        }
+        return response()->file(
+            storage_path("app/public/{$bulletin->pdf_path}")
+        );
     }
 
     /**
@@ -138,7 +88,6 @@ class BulletinController extends Controller
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
             $bulletin = Bulletin::with(['eleve.user', 'classe'])->find($id);
 
             if (!$bulletin) {
@@ -148,9 +97,11 @@ class BulletinController extends Controller
                 ], 404);
             }
 
-            // Vérifier les permissions
-            if (!$user->isAdmin() && !$user->isEnseignant() &&
-                ($user->isParent() && $user->parentUser->id !== $bulletin->eleve->parent_id)) {
+            if (
+                !$user->isAdmin() && !$user->isEnseignant() &&
+                ($user->isParent() && $user->parentUser->id !== $bulletin->eleve->parent_id) &&
+                ($user->isEleve() && $user->id !== $bulletin->eleve->user_id)
+            ) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Accès non autorisé'
@@ -179,10 +130,10 @@ class BulletinController extends Controller
         try {
             $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user->isAdmin()) {
+            if (!$user->isAdmin() && !$user->isEnseignant()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Seul un administrateur peut modifier un bulletin'
+                    'message' => 'Seul un administrateur ou enseignant peut modifier un bulletin'
                 ], 403);
             }
 
@@ -241,17 +192,9 @@ class BulletinController extends Controller
 
             $success = $this->bulletinService->supprimerBulletin($id);
 
-            if ($success) {
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Bulletin supprimé avec succès'
-                ], 200);
-            } else {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Erreur lors de la suppression du bulletin'
-                ], 500);
-            }
+            return $success
+                ? response()->json(['status' => 'success', 'message' => 'Bulletin supprimé avec succès'], 200)
+                : response()->json(['status' => 'error', 'message' => 'Erreur lors de la suppression du bulletin'], 500);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -263,7 +206,7 @@ class BulletinController extends Controller
     }
 
     /**
-     * Obtenir les bulletins d'un élève
+     * Obtenir les bulletins d'un élève (élève, parent, admin, enseignant)
      */
     public function getEleveBulletins(string $eleveId)
     {
@@ -278,9 +221,11 @@ class BulletinController extends Controller
                 ], 404);
             }
 
-            // Vérifier les permissions
-            if (!$user->isAdmin() && !$user->isEnseignant() &&
-                ($user->isParent() && $user->parentUser->id !== $eleve->parent_id)) {
+            if (
+                !$user->isAdmin() && !$user->isEnseignant() &&
+                ($user->isParent() && $user->parentUser->id !== $eleve->parent_id) &&
+                ($user->isEleve() && $user->id !== $eleve->user_id)
+            ) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Accès non autorisé'
@@ -358,10 +303,5 @@ class BulletinController extends Controller
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
-=======
-        return response()->file(
-            storage_path("app/public/{$bulletin->pdf_path}")
-        );
->>>>>>> Lotita
     }
 }

@@ -68,7 +68,7 @@ Route::middleware(['auth:api'])->group(function () {
     // Routes spécifiques pour les notes
     Route::get('/eleves/{eleve}/notes', [NoteController::class, 'getEleveNotes']);
     Route::post('/eleves/{eleve}/notes', [NoteController::class, 'storeEleveNote']);
-
+    Route::get('eleves/{eleveId}/rapport/{periode}', [NoteController::class, 'getRapportEleve']);
     // Routes spécifiques pour les bulletins
     Route::get('/eleves/{eleve}/bulletins', [BulletinController::class, 'getEleveBulletins']);
     Route::post('/eleves/{eleve}/bulletins', [BulletinController::class, 'generateBulletin']);
