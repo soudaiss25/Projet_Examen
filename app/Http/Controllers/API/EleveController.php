@@ -4,7 +4,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 
 
-use App\Http\Controllers\Controller;
+
 use App\Models\Eleve;
 use App\Models\User;
 use App\Services\EleveService;
