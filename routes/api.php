@@ -96,7 +96,7 @@ Route::post('{classe}/affectation-automatique', [ClasseController::class, 'affec
 Route::post('/', [NoteController::class, 'store']);
 Route::get('/{eleveId}/moyennes/matiere', [NoteController::class, 'moyenneParMatiere']);
 Route::get('/{eleveId}/moyenne-generale', [NoteController::class, 'moyenneGenerale']);
-Route::get('/{eleveId}', [NoteController::class, 'notesEleve']);
+
 
 Route::post('/{eleveId}/generer', [BulletinController::class, 'generer']);
 Route::get('/{eleveId}/{periode}/telecharger', [BulletinController::class, 'telecharger']);
