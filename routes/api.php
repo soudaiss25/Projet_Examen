@@ -45,7 +45,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::apiResource('eleves', EleveController::class);
 
     // Routes pour les classes
-    Route::apiResource('classes', ClasseController::class);
+//    Route::apiResource('classes', ClasseController::class);
 
     // Routes pour les enseignants
     Route::apiResource('enseignants', EnseignantController::class);
@@ -80,7 +80,7 @@ Route::middleware(['auth:api'])->group(function () {
     // Routes spécifiques pour les absences
     Route::get('/eleves/{eleve}/absences', [AbsenceController::class, 'getEleveAbsences']);
 });
-
+Route::apiResource('classes', ClasseController::class);
 Route::post('eleve', [UserController::class, 'createEleve']);
 Route::post('enseignant', [UserController::class, 'createEnseignant']);
 Route::post('parent', [UserController::class, 'createParent']);
