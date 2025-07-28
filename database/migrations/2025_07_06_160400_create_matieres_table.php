@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('nom');
             $table->text('description')->nullable();
             $table->string('niveau');
+            $table->integer('coefficient')->default(1);
             $table->timestamps();
         });
 

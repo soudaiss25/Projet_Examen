@@ -21,7 +21,7 @@ class UserSeeder extends Seeder
             'email' => 'admin@ecole.com',
             'password' => Hash::make('admin123'),
             'role' => 'admin',
-            'image' => null, // tu peux mettre un chemin d'image par défaut ici si tu veux
+            'image' => null,
             'est_actif' => true,
         ]);
     }

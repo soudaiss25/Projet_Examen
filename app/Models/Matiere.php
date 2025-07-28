@@ -14,7 +14,8 @@ class Matiere extends Model
     protected $fillable = [
         'nom',
         'description',
-        'niveau'
+        'niveau',
+        'coefficient',
     ];
 
     public function classes(): BelongsToMany

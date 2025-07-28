@@ -2,30 +2,62 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\Classe;
 
 class ClasseSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Liste des classes à créer
+        $anneeScolaire = now()->year . '-' . (now()->year + 1);
+
         $classes = [
-            '6e',
-            '5e',
-            '4e',
-            '3e',
-            '2nde',
-            '1ère',
-            'Terminale'
+            [
+                'nom' => '6e',
+                'niveau' => 'Collège',
+                'capacite' => 30,
+                'annee_scolaire' => $anneeScolaire,
+            ],
+            [
+                'nom' => '5e',
+                'niveau' => 'Collège',
+                'capacite' => 30,
+                'annee_scolaire' => $anneeScolaire,
+            ],
+            [
+                'nom' => '4e',
+                'niveau' => 'Collège',
+                'capacite' => 30,
+                'annee_scolaire' => $anneeScolaire,
+            ],
+            [
+                'nom' => '3e',
+                'niveau' => 'Collège',
+                'capacite' => 30,
+                'annee_scolaire' => $anneeScolaire,
+            ],
+            [
+                'nom' => '2nde',
+                'niveau' => 'Lycée',
+                'capacite' => 30,
+                'annee_scolaire' => $anneeScolaire,
+            ],
+            [
+                'nom' => '1ère',
+                'niveau' => 'Lycée',
+                'capacite' => 30,
+                'annee_scolaire' => $anneeScolaire,
+            ],
+            [
+                'nom' => 'Terminale',
+                'niveau' => 'Lycée',
+                'capacite' => 30,
+                'annee_scolaire' => $anneeScolaire,
+            ],
         ];
 
-        foreach ($classes as $nom) {
-            Classe::create(['nom' => $nom]);
+        foreach ($classes as $classe) {
+            Classe::create($classe);
         }
     }
 }

@@ -15,12 +15,13 @@ class MatiereSeeder extends Seeder
     {
         // Liste des matières avec coefficients par défaut
         $matieres = [
-            ['nom' => 'Mathématiques',       'coefficient' => 4],
-            ['nom' => 'Français',            'coefficient' => 3],
-            ['nom' => 'Physique-Chimie',     'coefficient' => 4],
-            ['nom' => 'Histoire-Géographie', 'coefficient' => 2],
-            ['nom' => 'Anglais',             'coefficient' => 2],
+            ['nom' => 'Mathématiques',       'coefficient' => 4, 'niveau' => '1ère'],
+            ['nom' => 'Français',            'coefficient' => 3, 'niveau' => '1ère'],
+            ['nom' => 'Physique-Chimie',     'coefficient' => 4, 'niveau' => '1ère'],
+            ['nom' => 'Histoire-Géographie', 'coefficient' => 2, 'niveau' => '1ère'],
+            ['nom' => 'Anglais',             'coefficient' => 2, 'niveau' => '1ère'],
         ];
+
 
         foreach ($matieres as $matiere) {
             Matiere::create($matiere);
