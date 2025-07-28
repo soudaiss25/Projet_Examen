@@ -1,16 +1,17 @@
 <?php
 
 namespace App\Http\Controllers\API;
+
 use App\Http\Controllers\Controller;
-
-
-
 use App\Models\Eleve;
 use App\Models\User;
+use App\Models\ParentUser;
 use App\Services\EleveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Log;
 
 class EleveController extends Controller
 {
@@ -28,6 +29,7 @@ class EleveController extends Controller
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
+            Log::info('Utilisateur authentifié pour liste élèves:', ['user_id' => $user->id]);
 
             // Vérifier les permissions
             if (!$user->isAdmin() && !$user->isEnseignant()) {
@@ -39,12 +41,15 @@ class EleveController extends Controller
 
             $eleves = Eleve::with(['user', 'classe', 'parent.user'])->get();
 
+            Log::info('Élèves récupérés:', ['count' => $eleves->count()]);
+
             return response()->json([
                 'status' => 'success',
                 'data' => $eleves
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Erreur récupération élèves:', ['error' => $e->getMessage()]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la récupération des élèves',
@@ -54,20 +59,26 @@ class EleveController extends Controller
     }
 
     /**
-     * Créer un nouvel élève
+     * Créer un nouvel élève avec génération automatique du matricule
      */
     public function store(Request $request)
     {
         try {
+            Log::info('=== DÉBUT CRÉATION ÉLÈVE ===');
+            Log::info('Données reçues:', $request->all());
+
             $user = JWTAuth::parseToken()->authenticate();
+            Log::info('Utilisateur authentifié:', ['user_id' => $user->id, 'role' => $user->role]);
 
             if (!$user->isAdmin()) {
+                Log::warning('Tentative création élève par non-admin:', ['user_id' => $user->id]);
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Seul un administrateur peut créer un élève'
                 ], 403);
             }
 
+            // Validation des données
             $validator = Validator::make($request->all(), [
                 'nom' => 'required|string|max:255',
                 'prenom' => 'required|string|max:255',
@@ -89,6 +100,7 @@ class EleveController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::error('Erreur validation:', $validator->errors()->toArray());
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Erreur de validation',
@@ -96,42 +108,124 @@ class EleveController extends Controller
                 ], 422);
             }
 
-            $eleveData = [
-                'nom' => $request->nom,
-                'prenom' => $request->prenom,
-                'adresse' => $request->adresse,
-                'telephone' => $request->telephone,
-                'email' => $request->email,
-                'date_naissance' => $request->date_naissance,
-                'lieu_naissance' => $request->lieu_naissance,
-                'sexe' => $request->sexe,
-                'classe_id' => $request->classe_id,
-            ];
+            Log::info('Validation réussie, création de l\'élève...');
 
-            $parentData = [
-                'nom' => $request->parent_nom,
-                'prenom' => $request->parent_prenom,
-                'adresse' => $request->parent_adresse,
-                'telephone' => $request->parent_telephone,
-                'email' => $request->parent_email,
-                'profession' => $request->parent_profession,
-            ];
+            // Démarrer une transaction
+            DB::beginTransaction();
 
-            $eleve = $this->eleveService->inscrireEleve($eleveData, $parentData);
+            try {
+                // 1. Créer l'utilisateur élève
+                $eleveUser = User::create([
+                    'nom' => $request->nom,
+                    'prenom' => $request->prenom,
+                    'email' => $request->email,
+                    'telephone' => $request->telephone,
+                    'adresse' => $request->adresse,
+                    'role' => 'eleve',
+                    'password' => bcrypt('password123'), // Mot de passe par défaut
+                ]);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Élève créé avec succès',
-                'data' => $eleve->load(['user', 'classe', 'parent.user'])
-            ], 201);
+                Log::info('Utilisateur élève créé:', ['user_id' => $eleveUser->id]);
+
+                // 2. Vérifier ou créer le parent
+                $parentUser = User::where('email', $request->parent_email)->first();
+
+                if (!$parentUser) {
+                    // Créer le parent s'il n'existe pas
+                    $parentUser = User::create([
+                        'nom' => $request->parent_nom,
+                        'prenom' => $request->parent_prenom,
+                        'email' => $request->parent_email,
+                        'telephone' => $request->parent_telephone,
+                        'adresse' => $request->parent_adresse,
+                        'role' => 'parent',
+                        'password' => bcrypt('password123'), // Mot de passe par défaut
+                    ]);
+
+                    Log::info('Utilisateur parent créé:', ['user_id' => $parentUser->id]);
+                } else {
+                    Log::info('Parent existant trouvé:', ['user_id' => $parentUser->id]);
+                }
+
+                // 3. Créer ou récupérer l'enregistrement parent
+                $parent = ParentUser::firstOrCreate(
+                    ['user_id' => $parentUser->id],
+                    ['profession' => $request->parent_profession ?? '']
+                );
+
+                Log::info('Parent élève créé/trouvé:', ['parent_id' => $parent->id]);
+
+                // 4. Générer le numéro de matricule
+                $numeroMatricule = $this->generateMatricule();
+                Log::info('Matricule généré:', ['matricule' => $numeroMatricule]);
+
+                // 5. Créer l'élève
+                $eleve = Eleve::create([
+                    'user_id' => $eleveUser->id,
+                    'date_naissance' => $request->date_naissance,
+                    'lieu_naissance' => $request->lieu_naissance,
+                    'sexe' => $request->sexe,
+                    'numero_matricule' => $numeroMatricule,
+                    'classe_id' => $request->classe_id,
+                    'parent_id' => $parent->id,
+                ]);
+
+                Log::info('Élève créé avec succès:', ['eleve_id' => $eleve->id]);
+
+                // Confirmer la transaction
+                DB::commit();
+
+                // Charger les relations
+                $eleve = $eleve->load(['user', 'classe', 'parent.user']);
+                Log::info('=== ÉLÈVE CRÉÉ AVEC SUCCÈS ===', ['eleve' => $eleve->toArray()]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Élève créé avec succès',
+                    'data' => $eleve
+                ], 201);
+
+            } catch (\Exception $e) {
+                // Annuler la transaction en cas d'erreur
+                DB::rollBack();
+                throw $e;
+            }
 
         } catch (\Exception $e) {
+            Log::error('=== ERREUR CRÉATION ÉLÈVE ===', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la création de l\'élève',
                 'error' => config('app.debug') ? $e->getMessage() : 'Erreur interne'
             ], 500);
         }
+    }
+
+    /**
+     * Générer un numéro de matricule unique
+     */
+    private function generateMatricule(): string
+    {
+        $year = date('Y');
+        $lastEleve = Eleve::whereYear('created_at', $year)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($lastEleve && $lastEleve->numero_matricule) {
+            // Extraire le numéro séquentiel du dernier matricule
+            $lastNumber = (int) substr($lastEleve->numero_matricule, -4);
+            $newNumber = $lastNumber + 1;
+        } else {
+            $newNumber = 1;
+        }
+
+        // Format: EL2024001, EL2024002, etc.
+        return 'EL' . $year . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -166,6 +260,7 @@ class EleveController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Erreur récupération élève:', ['id' => $id, 'error' => $e->getMessage()]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la récupération de l\'élève',
@@ -180,6 +275,8 @@ class EleveController extends Controller
     public function update(Request $request, string $id)
     {
         try {
+            Log::info('=== DÉBUT MISE À JOUR ÉLÈVE ===', ['id' => $id, 'data' => $request->all()]);
+
             $user = JWTAuth::parseToken()->authenticate();
 
             if (!$user->isAdmin()) {
@@ -223,6 +320,8 @@ class EleveController extends Controller
             // Mettre à jour l'élève
             $eleve->update($request->only(['date_naissance', 'lieu_naissance', 'sexe', 'classe_id']));
 
+            Log::info('Élève mis à jour avec succès');
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Élève mis à jour avec succès',
@@ -230,6 +329,7 @@ class EleveController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Erreur mise à jour élève:', ['id' => $id, 'error' => $e->getMessage()]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la mise à jour de l\'élève',
@@ -261,9 +361,19 @@ class EleveController extends Controller
                 ], 404);
             }
 
+            // Vérifier s'il y a des notes ou autres dépendances
+            if ($eleve->notes()->count() > 0) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Impossible de supprimer un élève ayant des notes'
+                ], 400);
+            }
+
             // Supprimer l'élève et son utilisateur
             $eleve->user->delete();
             $eleve->delete();
+
+            Log::info('Élève supprimé avec succès:', ['id' => $id]);
 
             return response()->json([
                 'status' => 'success',
@@ -271,6 +381,7 @@ class EleveController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Erreur suppression élève:', ['id' => $id, 'error' => $e->getMessage()]);
             return response()->json([
                 'status' => 'error',
                 'message' => 'Erreur lors de la suppression de l\'élève',

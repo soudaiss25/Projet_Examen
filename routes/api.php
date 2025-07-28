@@ -32,6 +32,10 @@ use App\Http\Controllers\API\AbsenceController;
 // Routes publiques (sans authentification)
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::middleware(['jwt.auth'])->group(function () {
+    Route::apiResource('eleves', EleveController::class);
+});
+
 
 // Routes protégées (authentification requise)
 Route::middleware(['auth:api'])->group(function () {
@@ -42,7 +46,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::put('/users/{userId}/toggle-status', [AuthController::class, 'toggleUserStatus']);
 
     // Routes pour les élèves
-    Route::apiResource('eleves', EleveController::class);
+
 
     // Routes pour les classes
 //    Route::apiResource('classes', ClasseController::class);
@@ -100,3 +104,4 @@ Route::get('/{eleveId}/moyenne-generale', [NoteController::class, 'moyenneGenera
 
 Route::post('/{eleveId}/generer', [BulletinController::class, 'generer']);
 Route::get('/{eleveId}/{periode}/telecharger', [BulletinController::class, 'telecharger']);
+
