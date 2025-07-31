@@ -46,10 +46,10 @@ Route::middleware(['auth:api'])->group(function () {
     Route::put('/users/{userId}/toggle-status', [AuthController::class, 'toggleUserStatus']);
 
     // Routes pour les élèves
-
+    Route::apiResource('eleves', EleveController::class);
 
     // Routes pour les classes
-//    Route::apiResource('classes', ClasseController::class);
+   Route::apiResource('classes', ClasseController::class);
 
     // Routes pour les enseignants
     Route::apiResource('enseignants', EnseignantController::class);

@@ -73,7 +73,6 @@ class ClasseController extends Controller
                 ], 403);
             }
 
-            // Validation avec logs
             $validator = Validator::make($request->all(), [
                 'nom' => 'required|string|max:255',
                 'niveau' => 'required|string|max:50',
