@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+
 
 class EleveController extends Controller
 {
@@ -389,4 +391,14 @@ class EleveController extends Controller
             ], 500);
         }
     }
+    private function envoyerIdentifiants($user, string $password) {
+        Mail::send('emails.credentials', [
+            'user' => $user,
+            'password' => $password
+        ], function($message) use ($user) {
+            $message->to($user->email, $user->prenom . ' ' . $user->nom)
+                ->subject('Vos identifiants de connexion');
+        });
+    }
+
 }

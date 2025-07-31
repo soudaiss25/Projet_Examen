@@ -52,7 +52,7 @@ Route::middleware(['auth:api'])->group(function () {
    Route::apiResource('classes', ClasseController::class);
 
     // Routes pour les enseignants
-    Route::apiResource('enseignants', EnseignantController::class);
+
 
     // Routes pour les matières
     Route::apiResource('matieres', MatiereController::class);
@@ -105,3 +105,12 @@ Route::get('/{eleveId}/moyenne-generale', [NoteController::class, 'moyenneGenera
 Route::post('/{eleveId}/generer', [BulletinController::class, 'generer']);
 Route::get('/{eleveId}/{periode}/telecharger', [BulletinController::class, 'telecharger']);
 
+Route::apiResource('enseignants', EnseignantController::class);
+use App\Http\Controllers\ClasseMatiereController;
+
+Route::apiResource('classe-matieres', ClasseMatiereController::class);
+use App\Http\Controllers\EnseignantMatiereController;
+use App\Http\Controllers\EnseignantClasseController;
+
+Route::apiResource('enseignant-matieres', EnseignantMatiereController::class);
+Route::apiResource('enseignant-classes', EnseignantClasseController::class);
